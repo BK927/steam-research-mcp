@@ -473,6 +473,12 @@ def _operation_schema(operation: str) -> dict[str, Any]:
         schemas[tool]["game_resolution"] = "Positive App ID or Steam app URL; titles prefer normalized exact matches. Ambiguous titles return INVALID_ARGUMENT with candidates."
     if tool == "steam_reviews_get":
         schemas[tool]["max_text_chars_per_item"] = "100-4000 characters including ellipsis, in both modes; excerpt_truncated/review_truncated flags indicate shortening."
+        schemas[tool]["review_fields"] = {
+            "weighted_vote_score": {
+                "type": ["number", "null"],
+                "description": "Finite helpfulness score in page items and analysis samples. Numeric strings are converted; missing, invalid and non-finite values become null.",
+            },
+        }
     if tool == "steam_analyze":
         schemas[tool]["review_insights_defaults"] = REVIEW_INSIGHTS_DEFAULTS
         schemas[tool]["review_insights_method"] = "Vote/language aggregation, no semantic text analysis. Retains first 2 * sample_per_bucket reviews in requested sort order, not balanced sentiment buckets. max_pages/max_seconds=0 disables those extra caps."

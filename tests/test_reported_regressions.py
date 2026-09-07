@@ -1,6 +1,7 @@
 """Regressions for incorrect game resolution and ignored review text limits."""
 
 import json
+import math
 from types import SimpleNamespace
 from typing import Any
 
@@ -91,6 +92,53 @@ def test_summary_reports_truncation_already_applied_by_provider() -> None:
     review = _fmt_review({"review": "x" * 600})
     assert len(review["excerpt"]) <= 280
     assert review["excerpt_truncated"] is True
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("0.476190477609634399", 0.476190477609634399),
+        (0.5, 0.5), (" 0.5 ", 0.5), (0, 0.0), (1, 1.0),
+        (None, None), ("", None), ("not a number", None),
+        (True, None), (False, None), ([], None), ({}, None),
+        ("NaN", None), ("Infinity", None), ("-Infinity", None),
+        (float("nan"), None), (float("inf"), None), (10 ** 400, None),
+    ],
+)
+def test_review_weighted_vote_score_is_a_finite_number_or_null(raw: Any, expected: float | None) -> None:
+    review = _full_review({"weighted_vote_score": raw})
+    score = review["weighted_vote_score"]
+    assert score == expected
+    assert score is None or (type(score) is float and math.isfinite(score))
+    json.dumps(review, allow_nan=False)
+
+
+def test_review_weighted_vote_score_type_is_consistent_in_public_pages_and_analysis(monkeypatch: pytest.MonkeyPatch) -> None:
+    from steam_mcp import legacy_backend
+    from steam_mcp.services.base import FunctionBackend, OperationBinding
+
+    async def fake_raw(url: str, params: dict, cache_ttl: int = 0) -> dict:
+        return {
+            "success": 1, "cursor": "*", "query_summary": {},
+            "reviews": [
+                {"recommendationid": "234314124", "weighted_vote_score": "0.476190477609634399", "voted_up": True},
+                {"recommendationid": "234191120", "weighted_vote_score": 0.5, "voted_up": False},
+                {"recommendationid": "missing", "voted_up": True},
+            ],
+        }
+
+    monkeypatch.setattr(legacy_backend, "_raw_get", fake_raw)
+    backend = FunctionBackend({
+        "steam_get_app_review_batch": OperationBinding(legacy_backend.steam_get_app_review_batch, legacy_backend.ReviewBatchInput),
+    })
+    server = make_server(backend)
+    page = call(server, "steam_reviews_get", {"game": 646570, "mode": "page", "limit": 3})["structuredContent"]
+    expected = [0.476190477609634399, 0.5, None]
+    assert [item["weighted_vote_score"] for item in page["items"]] == expected
+    job = call(server, "steam_analyze", {"task": "review_insights", "refs": ["646570"], "options": {"max_reviews": 3}})["structuredContent"]["job"]
+    assert job["status"] == "succeeded"
+    result = call(server, "steam_job_get", {"job_id": job["job_id"]})["structuredContent"]
+    assert [item["weighted_vote_score"] for item in result["items"]] == expected
 
 
 def test_negative_review_text_limit_is_rejected_before_provider_calls() -> None:

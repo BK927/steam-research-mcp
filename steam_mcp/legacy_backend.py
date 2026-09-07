@@ -26,6 +26,7 @@ import heapq
 import inspect
 import json
 import logging
+import math
 import os
 import random
 import re
@@ -3955,6 +3956,17 @@ def _optional_hours(minutes: Any) -> Optional[float]:
         return None
 
 
+def _optional_finite_float(value: Any) -> float | None:
+    """Normalize numeric provider strings without emitting non-JSON numbers."""
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) else None
+
+
 def _full_review(
     r: dict, max_text_chars: int = 0, include_author_id: bool = False
 ) -> dict:
@@ -3999,7 +4011,7 @@ def _full_review(
         "voted_up": r.get("voted_up"),
         "votes_up": r.get("votes_up", 0),
         "votes_funny": r.get("votes_funny", 0),
-        "weighted_vote_score": r.get("weighted_vote_score"),
+        "weighted_vote_score": _optional_finite_float(r.get("weighted_vote_score")),
         "comment_count": r.get("comment_count", 0),
         "steam_purchase": r.get("steam_purchase"),
         "received_for_free": r.get("received_for_free"),
