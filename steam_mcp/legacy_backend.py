@@ -3921,7 +3921,8 @@ def _fmt_review(r: dict) -> dict:
             (r.get("author") or {}).get("playtime_forever")
         ),
         "timestamp_created": r.get("timestamp_created"),
-        "excerpt": (text[:280] + "…") if len(text) > 280 else text,
+        "excerpt": (text[:279] + "…") if len(text) > 280 else text,
+        "excerpt_truncated": len(text) > 280,
         "text_sanitized": removed > 0,
     }
 
@@ -3930,7 +3931,7 @@ def _clip_text(value: Any, max_chars: int) -> tuple[str, bool, int]:
     """Sanitize text, apply an optional character cap, and report both changes."""
     text, removed = _sanitize_untrusted_text(value)
     if max_chars > 0 and len(text) > max_chars:
-        return text[:max_chars] + "…", True, removed
+        return text[:max_chars - 1] + "…", True, removed
     return text, False, removed
 
 

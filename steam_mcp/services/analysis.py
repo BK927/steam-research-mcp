@@ -103,6 +103,14 @@ ANALYSIS_BOOLEAN_OPTIONS = frozenset(
     }
 )
 
+REVIEW_INSIGHTS_DEFAULTS = {
+    "max_reviews": 5_000,
+    "max_pages": 0,
+    "max_seconds": 0,
+    "max_text_chars": 1_200,
+    "sample_per_bucket": 4,
+}
+
 
 class RetryableJobError(Exception):
     pass
@@ -272,7 +280,7 @@ class AnalysisService(BaseService):
                 ttl=60,
             )
         if task == "review_insights":
-            appid = await self.appid(first)
+            appid = await self.appid(first, options.get("country", "us"), options.get("language", "english"))
             return await self._review_insights(appid, options, job_id)
         if task == "game_overview":
             appid = await self.appid(first)
@@ -365,6 +373,7 @@ class AnalysisService(BaseService):
     async def _review_insights(
         self, appid: int, options: dict[str, Any], job_id: str | None
     ) -> dict[str, Any]:
+        options = {**REVIEW_INSIGHTS_DEFAULTS, **options}
         cursor_filters = {
             "appid": appid,
             "sort_by": options.get("sort_by", "recent"),
@@ -389,7 +398,7 @@ class AnalysisService(BaseService):
             cursor = "*"
         max_reviews = max(1, min(int(options.get("max_reviews", 5_000)), 50_000))
         max_pages = int(options.get("max_pages", 0))
-        max_seconds = int(options.get("max_seconds", 0))
+        max_seconds = float(options["max_seconds"])
         started = time.monotonic()
         scanned = positive = pages = 0
         languages: dict[str, int] = {}
@@ -446,6 +455,14 @@ class AnalysisService(BaseService):
         partial = stop_reason != "end_of_corpus"
         return {
             "appid": appid,
+            "analysis_scope": {
+                "method": "vote_and_language_aggregation",
+                "semantic_text_analysis": False,
+                "filters": {key: value for key, value in cursor_filters.items() if key != "appid"},
+                "limits": {key: options[key] for key in REVIEW_INSIGHTS_DEFAULTS},
+                "sample_selection": "first_reviews_in_requested_sort_order",
+                "samples_retained": len(samples),
+            },
             "reviews_scanned": scanned,
             "positive": positive,
             "negative": scanned - positive,
@@ -486,10 +503,38 @@ class AnalysisService(BaseService):
         offset = 0
         filters = {"job_id": job_id, "limit": page_limit, "max_chars": max_chars}
         items, container = self._pageable(result)
+        review_summary = None
+        review_samples = False
+        if job.task == "review_insights" and isinstance(result, dict):
+            review_summary = {key: value for key, value in result.items() if key != "samples"}
+            samples = result.get("samples", [])
+            state = self.cursor.decode(cursor, scope="job:result", filters=filters) if cursor else {}
+            # Keep old text cursors readable, and fall back to lossless chunks if
+            # even one sample cannot fit. The aggregate stays structured in data.
+            envelope["data"] = {**review_summary, "result_format": "review_samples"}
+            envelope["meta"]["untrusted_fields"] = ["items[].review", "items[].developer_response"]
+            sample_cursor = self.cursor.encode(
+                scope="job:result", filters=filters,
+                state={"mode": "list", "offset": len(samples)}, expires_at=job.expires_at,
+            )
+            envelope["page"] = {"returned": 1, "has_more": True, "next_cursor": sample_cursor}
+            fits = True
+            for sample in samples:
+                envelope["items"] = [sample]
+                if len(json.dumps([sample], ensure_ascii=False)) > max_chars or compact_size(envelope) > self.max_result_bytes:
+                    fits = False
+                    break
+            if fits and state.get("mode") != "text":
+                items, container = samples, envelope["data"]
+                review_samples = True
+            else:
+                items = None
+            envelope["items"] = []
+            envelope["page"] = {"returned": 0, "has_more": False, "next_cursor": None}
         if items is None:
             serialized = json.dumps(result, ensure_ascii=False, separators=(",", ":"))
             chunk_budget = min(max_chars, 8_000)
-            if not cursor and len(serialized) <= chunk_budget:
+            if review_summary is None and not cursor and len(serialized) <= chunk_budget:
                 envelope["data"] = result
                 if compact_size(envelope) <= self.max_result_bytes:
                     return envelope
@@ -511,6 +556,7 @@ class AnalysisService(BaseService):
                 next_offset = offset + len(chunk)
                 has_more = next_offset < len(serialized)
                 envelope["data"] = {
+                    **(review_summary or {}),
                     "result_format": "json_text_chunks", "encoding": "utf-8",
                     "total_chars": len(serialized), "chunk_start": offset,
                     "chunk_end": next_offset, "complete": not has_more,
@@ -545,6 +591,8 @@ class AnalysisService(BaseService):
             if state.get("mode") != "list":
                 raise ServiceError(ErrorCode.CURSOR_MISMATCH, "The job cursor mode is invalid.")
             offset = int(state.get("offset", 0))
+            if offset < 0 or offset >= len(items):
+                raise ServiceError(ErrorCode.CURSOR_MISMATCH, "The job cursor offset is invalid.")
         page = items[offset:offset + page_limit]
         has_more = offset + len(page) < len(items)
         envelope["data"] = container
@@ -559,6 +607,20 @@ class AnalysisService(BaseService):
                 expires_at=job.expires_at,
             ) if has_more else None,
         }
+        if review_samples:
+            # Page whole samples without shortening or losing their text.
+            while len(page) > 1 and (
+                compact_size(envelope) > self.max_result_bytes
+                or len(json.dumps(page, ensure_ascii=False)) > max_chars
+            ):
+                page.pop()
+                envelope["page"] = {
+                    "returned": len(page), "has_more": True,
+                    "next_cursor": self.cursor.encode(
+                        scope="job:result", filters=filters,
+                        state={"mode": "list", "offset": offset + len(page)}, expires_at=job.expires_at,
+                    ),
+                }
         return envelope
 
     async def cancel(self, job_id: str) -> dict[str, Any]:
@@ -582,7 +644,7 @@ class AnalysisService(BaseService):
         def stamp(value: float) -> str:
             return datetime.fromtimestamp(value, timezone.utc).isoformat().replace("+00:00", "Z")
 
-        return {
+        value = {
             "job_id": job.job_id,
             "task": job.task,
             "status": job.status,
@@ -594,6 +656,11 @@ class AnalysisService(BaseService):
             "updated_at": stamp(job.updated_at),
             "expires_at": stamp(job.expires_at),
         }
+        if job.task == "review_insights":
+            value["effective_limits"] = {
+                key: job.options.get(key, default) for key, default in REVIEW_INSIGHTS_DEFAULTS.items()
+            }
+        return value
 
     @staticmethod
     def _user(ref: str) -> str:

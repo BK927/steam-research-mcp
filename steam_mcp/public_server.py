@@ -26,7 +26,7 @@ from .services import (
     SearchService,
 )
 from .services.base import Backend
-from .services.analysis import ANALYSIS_OPTIONS
+from .services.analysis import ANALYSIS_OPTIONS, REVIEW_INSIGHTS_DEFAULTS
 from .oauth import OAuthRuntime
 
 
@@ -304,7 +304,7 @@ def create_server(
         )
 
     @server.tool(
-        description="Run one composite Steam analysis as an inspectable job.",
+        description="Start an analysis job. review_insights defaults to 5,000 reviews: vote/language counts and 8 samples, without semantic text analysis. Options: steam://schema/steam_analyze.",
         annotations=START_JOB,
         meta=OAUTH_META,
         structured_output=False,
@@ -469,6 +469,15 @@ def _operation_schema(operation: str) -> dict[str, Any]:
     }
     if tool not in schemas:
         raise ServiceError(ErrorCode.NOT_FOUND, f"No schema for operation {operation!r}.")
+    if tool in {"steam_game_get", "steam_reviews_get", "steam_player_get", "steam_analyze"}:
+        schemas[tool]["game_resolution"] = "Positive App ID or Steam app URL; titles prefer normalized exact matches. Ambiguous titles return INVALID_ARGUMENT with candidates."
+    if tool == "steam_reviews_get":
+        schemas[tool]["max_text_chars_per_item"] = "100-4000 characters including ellipsis, in both modes; excerpt_truncated/review_truncated flags indicate shortening."
+    if tool == "steam_analyze":
+        schemas[tool]["review_insights_defaults"] = REVIEW_INSIGHTS_DEFAULTS
+        schemas[tool]["review_insights_method"] = "Vote/language aggregation, no semantic text analysis. Retains first 2 * sample_per_bucket reviews in requested sort order, not balanced sentiment buckets. max_pages/max_seconds=0 disables those extra caps."
+    if tool == "steam_job_get":
+        schemas[tool]["review_insights"] = "Structured aggregates and analysis_scope in data; whole samples paged in items. If a single sample exceeds the budget, lossless whole-result JSON chunks retain structured aggregates alongside chunk metadata."
     return {
         "operation": tool,
         "mode": mode or None,

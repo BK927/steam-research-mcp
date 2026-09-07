@@ -842,8 +842,8 @@ def test_review_insights_reports_partial_signed_continuation_and_trust() -> None
     continuation = result["data"]["continuation_cursor"]
     assert continuation and continuation != "upstream-2"
     assert result["meta"]["untrusted_fields"] == [
-        "data.samples[].review",
-        "data.samples[].developer_response",
+        "items[].review",
+        "items[].developer_response",
     ]
 
     resumed = call(

@@ -84,6 +84,8 @@ class ReviewsService(BaseService):
                     details={"minimum": minimum, "maximum": maximum},
                 )
         language, country = locale_values(locale)
+        if max_text_chars_per_item < 0:
+            raise ServiceError(ErrorCode.INVALID_ARGUMENT, "max_text_chars_per_item cannot be negative.")
         appid = await self.appid(game, country, language)
         size = bounded_limit(limit, 20, 100)
         text_limit = max(0, min(max_text_chars_per_item or 1_200, 4_000))
@@ -104,6 +106,19 @@ class ReviewsService(BaseService):
                 },
                 ttl=300,
             )
+            # Copy cached provider rows before applying this request's smaller cap.
+            if isinstance(data, dict) and isinstance(data.get("reviews"), list):
+                reviews = []
+                for row in data["reviews"]:
+                    item = dict(row)
+                    for field in ("excerpt", "review"):
+                        text = item.get(field)
+                        if isinstance(text, str):
+                            clipped = len(text) > text_limit
+                            item[field] = text[:text_limit - 1] + "…" if clipped else text
+                            item[f"{field}_truncated"] = bool(item.get(f"{field}_truncated")) or clipped
+                    reviews.append(item)
+                data = {**data, "reviews": reviews}
             return self.result_envelope(
                 data,
                 canonical_uri=canonical,

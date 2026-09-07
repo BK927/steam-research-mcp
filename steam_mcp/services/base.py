@@ -6,6 +6,7 @@ import hashlib
 import inspect
 import json
 import re
+import unicodedata
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -138,21 +139,49 @@ class BaseService:
         )
 
     async def appid(self, game: str | int, country: str = "us", language: str = "english") -> int:
-        if isinstance(game, int) or str(game).strip().isdigit():
-            appid = int(game)
-            if appid > 0:
-                return appid
-        match = re.search(r"(?:store\.steampowered\.com/)?app/(\d+)", str(game))
+        text = str(game).strip()
+        if isinstance(game, bool) or not text:
+            raise ServiceError(ErrorCode.INVALID_ARGUMENT, "game must be a positive App ID, Steam app URL, or title.")
+        match = re.fullmatch(
+            r"(?:(?:https?://)?store\.steampowered\.com/|steam://entity/)?app/([^/?#]+)(?:[/?#].*)?",
+            text,
+            flags=re.IGNORECASE,
+        )
         if match:
-            return int(match.group(1))
+            text = match.group(1)
+        if isinstance(game, int) or re.fullmatch(r"[+-]?[0-9]+", text):
+            appid = int(text)
+            if appid <= 0:
+                raise ServiceError(ErrorCode.INVALID_ARGUMENT, "Steam App IDs must be positive integers.")
+            return appid
+        if match or "://" in text or text.lower().startswith(("app/", "store.steampowered.com/")):
+            raise ServiceError(ErrorCode.INVALID_ARGUMENT, "Expected a Steam app URL containing a positive integer App ID.")
         result = await self.call(
             "steam_search_apps",
-            {"query": str(game), "limit": 1, "country_code": country, "language": language},
+            {"query": text, "limit": 25, "country_code": country, "language": language},
         )
         rows = result.get("results", []) if isinstance(result, dict) else []
-        if not rows or not rows[0].get("appid"):
+        candidates = {
+            row["appid"]: {"appid": row["appid"], "name": row.get("name", "")}
+            for row in rows
+            if isinstance(row, dict) and type(row.get("appid")) is int and row["appid"] > 0
+        }
+        if not candidates:
             raise ServiceError(ErrorCode.NOT_FOUND, f"No Steam app matched {game!r}.")
-        return int(rows[0]["appid"])
+
+        def title_key(value: str) -> str:
+            return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+
+        exact = [row for row in candidates.values() if title_key(str(row["name"])) == title_key(text)]
+        if len(exact) == 1:
+            return exact[0]["appid"]
+        if len(candidates) == 1:
+            return next(iter(candidates))
+        raise ServiceError(
+            ErrorCode.INVALID_ARGUMENT,
+            "The game title is ambiguous. Choose an App ID or Steam app URL from the candidates.",
+            details={"reason": "ambiguous_game", "query": text, "candidates": exact or list(candidates.values())},
+        )
 
     def page_state(
         self,
