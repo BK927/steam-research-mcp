@@ -28,6 +28,7 @@ from .services import (
 from .services.base import Backend
 from .services.analysis import ANALYSIS_OPTIONS, REVIEW_INSIGHTS_DEFAULTS
 from .oauth import OAuthRuntime
+from .output_schemas import CancelOutput, JobOutput, ReadOutput
 
 
 logger = logging.getLogger(__name__)
@@ -182,7 +183,6 @@ def create_server(
         description="Read Steam game data. select: summary/store, technical, achievements only. Options and fields: steam://schema/steam_game_get.",
         annotations=READ_ONLY,
         meta=OAUTH_META,
-        structured_output=False,
     )
     async def steam_game_get(
         game: str | int,
@@ -194,7 +194,7 @@ def create_server(
         cursor: str = "",
         limit: LIMIT_100 = 20,
         locale: dict[str, str] | None = None,
-    ) -> CallToolResult:
+    ) -> Annotated[CallToolResult, ReadOutput]:
         return await invoke(
             lambda: game_service.get(game, view, select or [], options or {}, cursor, limit, locale or {}),
             f"Steam game {game}: {view}",
@@ -206,7 +206,6 @@ def create_server(
         description="Read Steam player data.",
         annotations=READ_ONLY,
         meta=OAUTH_META,
-        structured_output=False,
     )
     async def steam_player_get(
         player: str | list[str] | None = None,
@@ -217,7 +216,7 @@ def create_server(
         cursor: str = "",
         limit: LIMIT_100 = 25,
         locale: dict[str, str] | None = None,
-    ) -> CallToolResult:
+    ) -> Annotated[CallToolResult, ReadOutput]:
         return await invoke(
             lambda: player_service.get(
                 player,
@@ -238,7 +237,6 @@ def create_server(
         description="Find Steam titles, games, deals or charts.",
         annotations=READ_ONLY,
         meta=OAUTH_META,
-        structured_output=False,
     )
     async def steam_search(
         mode: Literal["lookup", "discover", "deals", "chart"] = "lookup",
@@ -247,7 +245,7 @@ def create_server(
         cursor: str = "",
         limit: LIMIT_30 = 10,
         locale: dict[str, str] | None = None,
-    ) -> CallToolResult:
+    ) -> Annotated[CallToolResult, ReadOutput]:
         return await invoke(
             lambda: search_service.search(mode, query, filters or {}, cursor, limit, locale or {}),
             f"Steam search: {mode}",
@@ -259,7 +257,6 @@ def create_server(
         description="Read review summaries or untrusted review pages. Language: locale.language. Filters: steam://schema/steam_reviews_get.",
         annotations=READ_ONLY,
         meta=OAUTH_META,
-        structured_output=False,
     )
     async def steam_reviews_get(
         game: str | int,
@@ -269,7 +266,7 @@ def create_server(
         limit: LIMIT_100 = 20,
         max_text_chars_per_item: REVIEW_TEXT_LIMIT = 1_200,
         locale: dict[str, str] | None = None,
-    ) -> CallToolResult:
+    ) -> Annotated[CallToolResult, ReadOutput]:
         return await invoke(
             lambda: reviews_service.get(
                 game,
@@ -289,14 +286,13 @@ def create_server(
         description="Read a Steam package, Workshop item or Community Market quote.",
         annotations=READ_ONLY,
         meta=OAUTH_META,
-        structured_output=False,
     )
     async def steam_community_get(
         kind: Literal["package", "workshop", "market"],
         ref: str,
         options: dict[str, Any] | None = None,
         locale: dict[str, str] | None = None,
-    ) -> CallToolResult:
+    ) -> Annotated[CallToolResult, ReadOutput]:
         return await invoke(
             lambda: community_service.get(kind, ref, options or {}, locale or {}),
             f"Steam community {kind}: {ref}",
@@ -307,7 +303,6 @@ def create_server(
         description="Start an analysis job. review_insights defaults to 5,000 reviews: vote/language counts and 8 samples, without semantic text analysis. Options: steam://schema/steam_analyze.",
         annotations=START_JOB,
         meta=OAUTH_META,
-        structured_output=False,
     )
     async def steam_analyze(
         task: Literal[
@@ -316,7 +311,7 @@ def create_server(
         refs: list[str],
         options: dict[str, Any] | None = None,
         request_id: str = "",
-    ) -> CallToolResult:
+    ) -> Annotated[CallToolResult, JobOutput]:
         return await invoke(
             lambda: analysis_service.start(task, refs, options or {}, request_id),
             f"Steam analysis: {task}",
@@ -327,14 +322,13 @@ def create_server(
         description="Read Steam analysis job status and one bounded result page.",
         annotations=READ_ONLY,
         meta=OAUTH_META,
-        structured_output=False,
     )
     async def steam_job_get(
         job_id: str,
         cursor: str = "",
         limit: LIMIT_100 = 20,
         max_chars: JOB_TEXT_LIMIT = 12_000,
-    ) -> CallToolResult:
+    ) -> Annotated[CallToolResult, JobOutput]:
         return await invoke(
             lambda: analysis_service.get(job_id, cursor, limit, max_chars),
             f"Steam analysis job {job_id}",
@@ -346,9 +340,8 @@ def create_server(
         description="Request cooperative cancellation of a Steam analysis job.",
         annotations=MUTATING_INTERNAL,
         meta=OAUTH_META,
-        structured_output=False,
     )
-    async def steam_job_cancel(job_id: str) -> CallToolResult:
+    async def steam_job_cancel(job_id: str) -> Annotated[CallToolResult, CancelOutput]:
         return await invoke(
             lambda: analysis_service.cancel(job_id),
             f"Cancellation request processed for Steam job {job_id}",
@@ -422,6 +415,7 @@ def _compact_tool_schemas(server: MCPServer) -> None:
 
     for tool in server._tool_manager.list_tools():
         strip_titles(tool.parameters)
+        strip_titles(tool.output_schema)
 
 
 def _catalog(status: dict[str, Any]) -> dict[str, Any]:

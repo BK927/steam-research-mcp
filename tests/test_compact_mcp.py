@@ -107,8 +107,20 @@ def test_public_registry_exact_surface_and_byte_budgets() -> None:
         for tool in tools
     ]
     assert tuple(tool.name for tool in tools) == PUBLIC_TOOL_NAMES
-    assert len(b"[" + b",".join(tool_rows) + b"]") <= 6_000
-    assert all(len(row) <= 1_000 for row in tool_rows)
+    # Output schemas are part of discovery now; keep their cost bounded while
+    # retaining the original budget for descriptions, inputs and annotations.
+    assert len(b"[" + b",".join(tool_rows) + b"]") <= 22_000
+    assert all(len(row) <= 3_300 for row in tool_rows)
+    input_rows = [
+        json.dumps(
+            {key: value for key, value in json.loads(row).items() if key != "outputSchema"},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode()
+        for row in tool_rows
+    ]
+    assert len(b"[" + b",".join(input_rows) + b"]") <= 6_000
+    assert all(len(row) <= 1_000 for row in input_rows)
     assert all(len((tool.description or "").encode()) <= 180 for tool in tools)
     assert run(server.list_prompts()) == []
     assert run(server.list_resources()) == []

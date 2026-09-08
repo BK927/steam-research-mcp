@@ -5,7 +5,7 @@ Measures the two sources of MCP token bloat (per Anthropic's tool best-practices
 and the wider MCP-optimization discourse):
 
   1. Tool-definition footprint ("schema bloat") — the on-the-wire tool list
-     (names + descriptions + input schemas) a client loads into context. This is
+     (names + descriptions + input/output schemas) a client loads into context. This is
      what `_compact_descriptions()` keeps small; this audit guards that it stays
      small. Fully deterministic, no network.
 
@@ -44,8 +44,9 @@ from steam_mcp.server import mcp  # noqa: E402
 # tool descriptions (_compact_descriptions already trims those). If you trim the
 # schemas later, re-run and lower DEFS_TOKEN_BUDGET to the new baseline so the gate
 # stays meaningful.
-DEFS_TOKEN_BUDGET = 1_500     # compact public v2 registry (baseline ~1.33k)
-PER_TOOL_TOKEN_WARN = 250     # compact per-tool schema target (baseline max ~247)
+DEFS_TOKEN_BUDGET = 5_500     # includes output contracts (baseline ~5.16k)
+INPUT_DEFS_TOKEN_BUDGET = 1_500  # retain the original input/metadata allowance
+PER_TOOL_TOKEN_WARN = 825     # output schemas included (baseline max ~770)
 RESPONSE_HARD_CAP = 25_000    # Anthropic's per-response guidance (hard fail)
 RESPONSE_WARN = 20_000        # warn band approaching the cap
 
@@ -60,12 +61,14 @@ def est_tokens(text: str) -> int:
 def audit_definitions() -> dict:
     tools = asyncio.run(mcp.list_tools())
     reg = getattr(mcp._tool_manager, "_tools", {})  # internal; best-effort
-    per_tool, total, raw_total = [], 0, 0
+    per_tool, total, raw_total, input_total = [], 0, 0, 0
     for t in tools:
-        obj = t.model_dump(mode="json", exclude_none=True)
+        obj = t.model_dump(mode="json", by_alias=True, exclude_none=True)
         wire = json.dumps(obj, separators=(",", ":"))
         tok = est_tokens(wire)
         total += tok
+        input_obj = {key: value for key, value in obj.items() if key != "outputSchema"}
+        input_total += est_tokens(json.dumps(input_obj, separators=(",", ":")))
         per_tool.append({"name": t.name, "tokens": tok, "chars": len(wire)})
         # What this def WOULD cost without _compact_descriptions (full docstring).
         fn = getattr(reg.get(t.name), "fn", None)
@@ -78,6 +81,8 @@ def audit_definitions() -> dict:
         "total_tokens": total,
         "uncompacted_tokens": raw_total,
         "budget": DEFS_TOKEN_BUDGET,
+        "input_tokens": input_total,
+        "input_budget": INPUT_DEFS_TOKEN_BUDGET,
         "per_tool": per_tool,
     }
 
@@ -226,7 +231,10 @@ def main() -> int:
     defs = audit_definitions()
     resp = audit_responses()
 
-    defs_over = defs["total_tokens"] > defs["budget"]
+    defs_over = (
+        defs["total_tokens"] > defs["budget"]
+        or defs["input_tokens"] > defs["input_budget"]
+    )
     resp_over = resp["worst"] > resp["hard_cap"]
     ok = not (defs_over or resp_over)
 
@@ -243,6 +251,8 @@ def main() -> int:
     flag = "OVER BUDGET" if defs_over else "ok"
     print(f"  total: ~{defs['total_tokens']:,} est tokens   "
           f"[budget {defs['budget']:,}]  {flag}")
+    print(f"  inputs and metadata: ~{defs['input_tokens']:,} est tokens   "
+          f"[budget {defs['input_budget']:,}]")
     print(f"  uncompacted would be ~{defs['uncompacted_tokens']:,} tokens "
           f"(_compact_descriptions saves ~{saved:.0f}%)")
     if args.exact:
