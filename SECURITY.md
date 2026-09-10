@@ -7,7 +7,7 @@ This describes its security posture and how to report issues.
 ## Reporting a vulnerability
 
 Open a private report via
-[GitHub Security Advisories](https://github.com/Sarg338/steam-mcp/security/advisories/new),
+[GitHub Security Advisories](https://github.com/BK927/steam-research-mcp/security/advisories/new),
 or a regular issue for non-sensitive reports. Please include steps to reproduce.
 
 ## Posture

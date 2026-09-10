@@ -2,15 +2,15 @@
 
 A concise, one-line-per-change history. Versions follow
 [Semantic Versioning](https://semver.org/). Releases:
-<https://github.com/Sarg338/steam-mcp/releases>
+<https://github.com/BK927/steam-research-mcp/releases>
 
 ## [2.2.0] — Multi-provider market analytics
 - Added `steam_game_get(view="analytics")` without expanding the eight-tool surface, keeping official Steam facts separate from Gamalytic and SteamSpy estimates.
 - Added keyless Gamalytic public fields, optional premium-key support, best-effort SteamSpy data, per-provider availability, provenance, and estimate warnings.
 - Added least-privilege Cloud Run secret wiring for an optional Gamalytic API key.
 - Added a rollback-aware Raspberry Pi systemd/Funnel deployment and public-path analytics smoke test.
-- Switched the authoritative remote plugin endpoint from Cloud Run to the Raspberry Pi Funnel while retaining Cloud Run as a disabled rollback target.
-- Moved the Raspberry Pi Steam Funnel default to HTTPS port 8443 for ChatGPT OAuth discovery compatibility while keeping YouTube on 443.
+- Added a Raspberry Pi Funnel deployment option while retaining Cloud Run as an alternative managed target.
+- Moved the Raspberry Pi Funnel default to HTTPS port 8443 for ChatGPT OAuth discovery compatibility and to avoid assuming ownership of shared port 443.
 - Fixed Raspberry Pi redeployments so preserved credentials cannot overwrite a newly selected public URL or Funnel port.
 - Added an optional shared-port `/steam` OAuth alias for ChatGPT while retaining the dedicated 8443 Steam endpoint for bearer clients.
 - Persisted the RFC well-known OAuth discovery routes for the shared `/steam` alias across Raspberry Pi redeployments.

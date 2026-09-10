@@ -2,7 +2,7 @@
 """Add the released .mcpb bundle to server.json as a second package.
 
 The MCP Registry can serve more than one package per server. We publish to PyPI
-(`uvx steam-mcp`) and also attach a `.mcpb` desktop bundle to each GitHub
+(`uvx steam-research-mcp`) and also attach a `.mcpb` desktop bundle to each GitHub
 Release; registering the bundle too makes the one-click Claude Desktop install
 discoverable from the registry instead of only from the releases page.
 
@@ -28,7 +28,7 @@ import sys
 import urllib.error
 import urllib.request
 
-REPO = "Sarg338/steam-mcp"
+REPO = "BK927/steam-research-mcp"
 SERVER_JSON = pathlib.Path(__file__).resolve().parent.parent / "server.json"
 TIMEOUT = 60
 

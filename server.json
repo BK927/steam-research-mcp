@@ -1,10 +1,10 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.Sarg338/steam-mcp",
-  "description": "Read-only Steam research through 8 compact game, player, review, community, search, and job tools.",
-  "title": "Steam (read-only)",
+  "name": "io.github.BK927/steam-research-mcp",
+  "description": "Unofficial read-only Steam research through 8 compact game, player, review, community, search, analytics, and job tools.",
+  "title": "Steam Research MCP Server — Games, Prices, Reviews & Player Analytics",
   "repository": {
-    "url": "https://github.com/Sarg338/steam-mcp",
+    "url": "https://github.com/BK927/steam-research-mcp",
     "source": "github"
   },
   "version": "2.2.0",
@@ -12,7 +12,7 @@
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
-      "identifier": "steam-mcp",
+      "identifier": "steam-research-mcp",
       "version": "2.2.0",
       "runtimeHint": "uvx",
       "transport": {

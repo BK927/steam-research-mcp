@@ -1,25 +1,29 @@
 {
   "name": "steam-mcp",
   "version": "2.2.0",
-  "description": "Read-only Steam game, store, review, player, community, and analysis research.",
+  "description": "Unofficial read-only Steam game, price, review, player, community, and market research.",
   "author": {
-    "name": "Sarg"
+    "name": "BK927",
+    "url": "https://github.com/BK927"
   },
-  "homepage": "https://github.com/Sarg338/steam-mcp",
-  "repository": "https://github.com/Sarg338/steam-mcp",
+  "homepage": "https://github.com/BK927/steam-research-mcp",
+  "repository": "https://github.com/BK927/steam-research-mcp",
   "license": "MIT",
   "keywords": [
     "steam",
+    "steam-api",
     "games",
     "reviews",
-    "mcp"
+    "mcp",
+    "model-context-protocol",
+    "ai-agents"
   ],
   "mcpServers": "./.mcp.json",
   "interface": {
-    "displayName": "Steam MCP",
-    "shortDescription": "Research Steam games, players, reviews, and market data.",
-    "longDescription": "A read-only Steam research plugin with compact tools for store data, public players, reviews, community data, and resumable analysis jobs.",
-    "developerName": "Sarg",
+    "displayName": "Steam Research MCP Server — Games, Prices, Reviews & Player Analytics",
+    "shortDescription": "Research Steam games, prices, reviews, players, and market data.",
+    "longDescription": "An unofficial read-only Steam research plugin with eight compact tools for store data, public players, reviews, builds, community data, market analytics, and resumable analysis jobs.",
+    "developerName": "BK927",
     "category": "Productivity",
     "capabilities": [
       "Read-only Steam research",

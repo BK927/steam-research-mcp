@@ -2,7 +2,7 @@
   "mcpServers": {
     "steam-mcp": {
       "type": "http",
-      "url": "https://home-raspberrypi.tail876727.ts.net:8443/mcp",
+      "url": "https://steam-mcp.example.com/mcp",
       "bearer_token_env_var": "STEAM_MCP_ACCESS_TOKEN"
     }
   }

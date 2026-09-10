@@ -1,13 +1,13 @@
-# Steam MCP on Google Cloud Run
+# Steam Research MCP Server on Google Cloud Run
 
-This is the production profile for Steam MCP 2.2.0. It preserves local stdio but uses managed Google Cloud state for remote work. No deployment has been executed from this repository as part of the refactor.
+This is the managed Google Cloud profile for Steam Research MCP Server 2.2.0. It preserves local stdio but uses managed Google Cloud state for remote work. No deployment was executed from this repository as part of the refactor itself.
 
 ## Fixed v1 topology
 
 | Resource | Name/default | Region and capacity | Exposure |
 | --- | --- | --- | --- |
 | Artifact Registry | `mcp/steam-mcp` | `asia-northeast1` | private |
-| MCP Cloud Run service | `steam-mcp` | 1 vCPU, 512 MiB, concurrency 10, timeout 300 s, min 0, max 1 | public ingress; bearer required at `/mcp` |
+| MCP Cloud Run service | `steam-mcp` | 1 vCPU, 512 MiB, concurrency 10, timeout 300 s, min 0, max 1 | public ingress; bearer or personal OAuth access token required at `/mcp` |
 | Worker Cloud Run service | `steam-mcp-worker` | 1 vCPU, 1 GiB, concurrency 1, timeout 1,800 s, min 0, max 2 | private IAM |
 | Cloud Tasks queue | `steam-mcp-jobs` | `asia-northeast1`; 1 dispatch/s, 2 concurrent, 3 attempts | runtime identity can enqueue |
 | Firestore | `(default)` / `steam_jobs` | Native mode, `asia-northeast1` | runtime and worker identities |
@@ -51,7 +51,7 @@ pwsh -File .\scripts\provision-gcp.ps1 `
   -ConfigureSteamApiKey
 ```
 
-Provisioning is idempotent for infrastructure and does not rotate an existing MCP bearer, worker token, or cursor secret. It creates an initial random value only when the corresponding secret has no enabled version. The cursor secret is independently pinned to both revisions so restarts and two workers can verify the same opaque cursors. If `(default)` Firestore already exists outside `asia-northeast1`, the script stops instead of silently creating a cross-region design.
+Provisioning is idempotent for infrastructure and does not rotate an existing MCP bearer, worker token, cursor secret, or personal OAuth login/signing secret. It creates an initial random value only when the corresponding secret has no enabled version. The cursor secret is independently pinned to both revisions so restarts and two workers can verify the same opaque cursors. If `(default)` Firestore already exists outside `asia-northeast1`, the script stops instead of silently creating a cross-region design.
 
 ## Candidate deployment and promotion
 
@@ -137,7 +137,7 @@ Traffic changes do not rebuild the image. Because secret references are revision
 - Logs must never include bearer/API key values, Cloud Tasks authorization headers, cursor secrets, or raw untrusted review bodies.
 - Alert on Cloud Run 5xx/latency, Cloud Tasks oldest task age and retry exhaustion, Firestore errors, bucket growth, and Steam upstream throttling.
 - Keep the API key restrictions, bucket public-access prevention, Firestore delete protection, and service-specific secret IAM under drift review.
-- The fixed bearer is suitable for a private operator plugin. A shared external product needs MCP-native per-user authorization, audit, quotas, and revocation.
+- The fixed bearer and personal OAuth flow are suitable for a private operator deployment. A shared external product needs a separate multi-user authorization, audit, quota, and revocation design.
 
 ## Reproducibility boundary
 

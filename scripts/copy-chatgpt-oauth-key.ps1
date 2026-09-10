@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-  [string]$ProjectId = "youtube-mcp-aio"
+  [Parameter(Mandatory = $true)]
+  [string]$ProjectId
 )
 
 Set-StrictMode -Version Latest

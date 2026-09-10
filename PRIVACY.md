@@ -96,6 +96,6 @@ apps; the MCP cannot bypass that restriction or access private profile data.
 
 ## Contact
 
-Issues and questions: https://github.com/Sarg338/steam-mcp/issues
+Issues and questions: https://github.com/BK927/steam-research-mcp/issues
 
 _This project is not affiliated with or endorsed by Valve Corporation._

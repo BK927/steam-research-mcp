@@ -1,33 +1,37 @@
 {
   "manifest_version": "0.4",
   "name": "steam-mcp",
-  "display_name": "Steam (read-only)",
+  "display_name": "Steam Research MCP Server — Games, Prices, Reviews & Player Analytics",
   "version": "2.2.0",
   "icon": "icon.png",
-  "description": "Read-only Steam research through 8 compact game, player, review, community, search, and job tools.",
-  "long_description": "A read-only Model Context Protocol server for Valve's public Steam APIs plus disclosed third-party sources for current SteamCMD AppInfo and market estimates. Eight compact tools cover store data, reviews, prices, tags, live players, current builds, public player data, libraries, achievements, community data, market analytics, and bounded analysis jobs. Official Steam facts remain separate from Gamalytic and SteamSpy estimates. The server never scrapes SteamDB and never writes, trades, posts, launches games, or makes purchases.\n\nA free Steam Web API key is optional and is only needed for account-specific views and personalization. A Gamalytic key is optional; keyless public fields remain available. Friends lists, owned games, and achievements are visible only when the target Steam profile's relevant privacy setting is Public.",
+  "description": "Unofficial read-only Steam research through 8 compact game, player, review, community, search, analytics, and job tools.",
+  "long_description": "An unofficial, read-only Model Context Protocol server for Valve's public Steam APIs plus disclosed third-party sources for current SteamCMD AppInfo and market estimates. Eight compact tools cover store data, reviews, prices, tags, live players, current builds, public player data, libraries, achievements, community data, market analytics, and bounded analysis jobs. Official Steam facts remain separate from Gamalytic and SteamSpy estimates. The server never scrapes SteamDB and never writes, trades, posts, launches games, or makes purchases.\n\nA free Steam Web API key is optional and is only needed for account-specific views and personalization. A Gamalytic key is optional; keyless public fields remain available. Friends lists, owned games, and achievements are visible only when the target Steam profile's relevant privacy setting is Public.",
   "author": {
-    "name": "Sarg",
-    "url": "https://github.com/Sarg338/steam-mcp"
+    "name": "BK927",
+    "url": "https://github.com/BK927/steam-research-mcp"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Sarg338/steam-mcp.git"
+    "url": "https://github.com/BK927/steam-research-mcp.git"
   },
-  "homepage": "https://github.com/Sarg338/steam-mcp",
-  "documentation": "https://github.com/Sarg338/steam-mcp#readme",
-  "support": "https://github.com/Sarg338/steam-mcp/issues",
+  "homepage": "https://github.com/BK927/steam-research-mcp",
+  "documentation": "https://github.com/BK927/steam-research-mcp#readme",
+  "support": "https://github.com/BK927/steam-research-mcp/issues",
   "license": "MIT",
   "keywords": [
     "steam",
+    "steam-api",
     "valve",
     "games",
     "gaming",
     "achievements",
-    "reviews"
+    "reviews",
+    "mcp",
+    "model-context-protocol",
+    "ai-agents"
   ],
   "privacy_policies": [
-    "https://github.com/Sarg338/steam-mcp/blob/main/PRIVACY.md"
+    "https://github.com/BK927/steam-research-mcp/blob/main/PRIVACY.md"
   ],
   "server": {
     "type": "uv",

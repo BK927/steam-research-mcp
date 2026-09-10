@@ -30,6 +30,8 @@ plugin = load_json(ROOT / ".codex-plugin" / "plugin.json")
 companion = load_json(ROOT / ".mcp.json")
 manifest = load_json(ROOT / "manifest.json")
 server = load_json(ROOT / "server.json")
+pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
 assert plugin["name"] == "steam-mcp"
 assert plugin["version"] == EXPECTED_VERSION
@@ -38,6 +40,14 @@ assert set(companion["mcpServers"]) == {"steam-mcp"}
 remote = companion["mcpServers"]["steam-mcp"]
 assert remote["type"] == "http" and remote["url"].endswith("/mcp")
 assert remote["bearer_token_env_var"] == "STEAM_MCP_ACCESS_TOKEN"
+assert remote["url"] == "https://steam-mcp.example.com/mcp"
+assert 'name = "steam-research-mcp"' in pyproject
+assert 'steam-research-mcp = "steam_mcp.server:main"' in pyproject
+assert 'steam-mcp = "steam_mcp.server:main"' in pyproject
+assert server["name"] == "io.github.BK927/steam-research-mcp"
+assert "mcp-name: io.github.BK927/steam-research-mcp" in readme
+assert server["repository"]["url"] == "https://github.com/BK927/steam-research-mcp"
+assert server["packages"][0]["identifier"] == "steam-research-mcp"
 
 pi_deploy = (ROOT / "scripts" / "deploy-raspberry-pi.sh").read_text(encoding="utf-8")
 assert 'PUBLIC_PORT="${STEAM_MCP_PUBLIC_PORT:-8443}"' in pi_deploy

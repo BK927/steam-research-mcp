@@ -1,12 +1,13 @@
 [project]
-name = "steam-mcp"
+name = "steam-research-mcp"
 version = "2.2.0"
-description = "Read-only Steam MCP: games, reviews, current builds/depots, prices and players without a key; optional key for libraries, friends and achievements."
+description = "Unofficial read-only Steam research MCP server for games, prices, reviews, builds, public players, libraries, achievements, and market analytics."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Sarg" }]
-keywords = ["mcp", "steam", "model-context-protocol", "llm", "valve", "gaming"]
+authors = [{ name = "Sarg" }, { name = "BK927" }]
+maintainers = [{ name = "BK927" }]
+keywords = ["mcp", "steam", "steam-api", "model-context-protocol", "ai-agents", "game-data", "game-reviews", "gaming"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -37,13 +38,20 @@ gcp = [
 ]
 
 [project.scripts]
+steam-research-mcp = "steam_mcp.server:main"
+# Compatibility alias for existing source checkouts. The PyPI name `steam-mcp`
+# belongs to a different upstream project, so public instructions use the
+# primary `steam-research-mcp` command.
 steam-mcp = "steam_mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/Sarg338/steam-mcp"
-Repository = "https://github.com/Sarg338/steam-mcp"
-Issues = "https://github.com/Sarg338/steam-mcp/issues"
-Documentation = "https://github.com/Sarg338/steam-mcp#readme"
+Homepage = "https://github.com/BK927/steam-research-mcp"
+Repository = "https://github.com/BK927/steam-research-mcp"
+Issues = "https://github.com/BK927/steam-research-mcp/issues"
+Documentation = "https://github.com/BK927/steam-research-mcp#readme"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 88

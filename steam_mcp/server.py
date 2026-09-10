@@ -322,7 +322,7 @@ class _HttpGateway:
                     "authorization_servers": [self.oauth.provider.issuer],
                     "scopes_supported": [self.oauth.provider.scope],
                     "bearer_methods_supported": ["header"],
-                    "resource_name": "Steam MCP",
+                    "resource_name": "Steam Research MCP Server",
                 },
                 head=method == "HEAD",
             )
