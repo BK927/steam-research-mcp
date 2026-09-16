@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import random
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -18,7 +19,7 @@ from ..services.base import provider_checkpoint
 GAMALYTIC_GAME_URL = "https://api.gamalytic.com/game/{appid}"
 GAMALYTIC_LIST_URL = "https://api.gamalytic.com/steam-games/list"
 STEAMSPY_URL = "https://steamspy.com/api.php"
-ALLOWED_HOSTS = frozenset({"api.gamalytic.com", "steamspy.com"})
+ALLOWED_HOSTS = frozenset({"api.gamalytic.com", "steamspy.com", "www.cheapshark.com"})
 RETRYABLE_STATUS = frozenset({429, 502, 503, 504})
 MAX_RETRIES = 2
 TIMEOUT_SECONDS = 15.0
@@ -127,6 +128,16 @@ def _limited_strings(value: Any, maximum: int = 20) -> list[str]:
     return [str(item)[:120] for item in list(value)[:maximum] if item is not None]
 
 
+def analytics_provenance(data: dict[str, Any], expected: dict[str, str]) -> None:
+    """Record observation time before the normalized result enters the TTL cache."""
+    provenance = data["provenance"]
+    provenance["fetched_at"] = datetime.now(timezone.utc).isoformat()
+    provenance["available_fields"] = sorted(set(data) - {"provenance"})
+    provenance["missing_fields"] = sorted(set(expected) - set(data))
+    provenance["units"] = {key: unit for key, unit in expected.items() if key in data}
+    provenance["missing_value_policy"] = "Omitted means not supplied; zero is preserved, not imputed."
+
+
 def normalize_gamalytic(payload: Any, *, mode: str) -> dict[str, Any]:
     if mode == "free":
         rows = payload.get("result") if isinstance(payload, dict) else None
@@ -172,6 +183,18 @@ def normalize_gamalytic(payload: Any, *, mode: str) -> dict[str, Any]:
         "access_mode": mode,
         "documentation": "https://api.gamalytic.com/reference/",
     }
+    analytics_provenance(data, {
+        "estimated_copies_sold": "copies; free distribution is not paid sales",
+        "estimated_players": "players; not concurrent players",
+        "estimated_owners": "owners; not sales",
+        "estimated_revenue": "provider currency/unit unverified",
+        "estimated_total_revenue": "provider currency/unit unverified",
+        "estimated_wishlists": "wishlists", "followers": "followers",
+        "reviews": "reviews", "steam_reviews": "reviews",
+        "review_score_pct": "percent", "average_playtime": "provider unit unverified",
+    })
+    if cache_timestamp is not None:
+        data["provenance"]["upstream_cache_timestamp_ms"] = cache_timestamp
     return data
 
 
@@ -272,6 +295,23 @@ def normalize_steamspy(payload: Any) -> dict[str, Any]:
         "kind": "third_party_sample_estimate",
         "documentation": "https://steamspy.com/about",
     }
+    playtime_fields = (
+        "average_playtime_forever_minutes", "average_playtime_2weeks_minutes",
+        "median_playtime_forever_minutes", "median_playtime_2weeks_minutes",
+    )
+    analytics_provenance(data, {
+        "estimated_owners_low": "owners; not sales",
+        "estimated_owners_high": "owners; not sales",
+        "estimated_ccu": "concurrent players at provider observation",
+        "positive_reviews": "reviews", "negative_reviews": "reviews",
+        "positive_review_pct": "percent", "discount_pct": "percent",
+        "price_minor_units": "provider minor currency units; currency unverified",
+        "initial_price_minor_units": "provider minor currency units; currency unverified",
+        **dict.fromkeys(playtime_fields, "minutes"),
+    })
+    data["provenance"]["ambiguous_zero_fields"] = [
+        key for key in playtime_fields if key in data and _integer(data[key]) == 0
+    ]
     return data
 
 

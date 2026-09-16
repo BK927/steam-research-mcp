@@ -41,7 +41,7 @@ GAME_OPTIONS = {
     "achievements": frozenset(),
     "live": frozenset(),
     "news": frozenset(),
-    "pricing": frozenset({"countries"}),
+    "pricing": frozenset({"countries", "include_external_deals"}),
     "analytics": frozenset({"providers"}),
 }
 
@@ -78,7 +78,7 @@ class GameService(BaseService):
         boolean_options = {
             "include_requirements", "include_long_description",
             "include_launch_options", "include_all_manifests", "enrich",
-            "on_sale_only",
+            "on_sale_only", "include_external_deals",
         }
         invalid_bools = sorted(
             key for key in options
@@ -172,6 +172,7 @@ class GameService(BaseService):
         preferred: tuple[str, ...] = ()
         has_more = False
         untrusted_fields: list[str] | None = None
+        warnings: list[str] = []
 
         if view in {"summary", "store"}:
             data = await self.call(
@@ -347,6 +348,10 @@ class GameService(BaseService):
                 ttl=300,
             )
             preferred = ("prices", "regions")
+            if options.get("include_external_deals", False):
+                external, warnings = await self._external_deals(appid)
+                data = {**data, "external_deals": external}
+                untrusted_fields = ["items", "data.external_deals.deals[].store_name", "data.external_deals.deals[].url"]
         else:
             requested = options.get("providers") or ["steam", "gamalytic", "steamspy"]
             data, warnings = await self._analytics(appid, requested, country, language)
@@ -384,13 +389,42 @@ class GameService(BaseService):
             provider=(
                 "+".join(data.get("sources", {}))
                 if view == "analytics" and isinstance(data, dict)
-                else "steamcmd" if view == "technical" else "steam_store"
+                else "steamcmd" if view == "technical"
+                else "steam_store+cheapshark" if view == "pricing" and data.get("external_deals", {}).get("status") == "available"
+                else "steam_store"
             ),
             preferred_items=preferred,
             next_cursor=next_value,
-            warnings=warnings if view == "analytics" else None,
+            warnings=warnings or None,
             untrusted_fields=untrusted_fields,
         )
+
+    async def _external_deals(self, appid: int) -> tuple[dict[str, Any], list[str]]:
+        warnings: list[str] = []
+        try:
+            match = await self.call("steam_get_external_price_match", {"appid": appid}, ttl=86_400)
+            if match["status"] != "available":
+                return {"provider": "cheapshark", **match}, [
+                    f"CheapShark exact App ID match is {match['status']}; no title-based substitution was made."
+                ]
+            deals = await self.call(
+                "steam_get_external_deals", {"appid": appid, "game_id": match["game_id"]}, ttl=3_600
+            )
+            try:
+                stores = await self.call("steam_get_external_stores", {}, ttl=86_400)
+                names = stores.get("stores", {})
+            except ServiceError:
+                names = {}
+                warnings.append("CheapShark store names unavailable; store IDs and offers retained.")
+            return {
+                **deals, "match_fetched_at": match.get("fetched_at"),
+                "deals": [{**deal, "store_name": names.get(deal["store_id"])} for deal in deals["deals"]],
+            }, warnings
+        except ServiceError as exc:
+            return {
+                "provider": "cheapshark", "status": "unavailable",
+                "code": exc.code.value, "retryable": exc.retryable,
+            }, [f"CheapShark unavailable ({exc.code.value}); Steam regional prices retained."]
 
     async def _analytics(
         self,
@@ -410,9 +444,9 @@ class GameService(BaseService):
                         "include_requirements": False,
                         "include_long_description": False,
                     },
-                    ttl=600,
+                    ttl=600, with_freshness=True,
                 ),
-                self.call("steam_get_current_players", {"appid": appid}, ttl=60),
+                self.call("steam_get_current_players", {"appid": appid}, ttl=60, with_freshness=True),
                 self.call(
                     "steam_get_app_reviews",
                     {
@@ -426,7 +460,7 @@ class GameService(BaseService):
                         "country_code": country,
                         "language": "all",
                     },
-                    ttl=300,
+                    ttl=300, with_freshness=True,
                 ),
             ]
             rows = await asyncio.gather(*calls, return_exceptions=True)
@@ -455,6 +489,11 @@ class GameService(BaseService):
                     "provider": "steam",
                     "kind": "official_first_party",
                     "documentation": "https://partner.steamgames.com/doc/webapi",
+                    "available_fields": sorted(available),
+                    "component_fetched_at": {
+                        name: row.get("fetched_at") for name, row in available.items() if isinstance(row, dict)
+                    },
+                    "units": {"live.current_players": "currently concurrent players; not owners or sales"},
                 },
             }
 
@@ -498,12 +537,15 @@ class GameService(BaseService):
             )
         if "gamalytic" in sources:
             warnings.append("Gamalytic sales, player, owner and revenue values are third-party estimates.")
+            warnings.append("Gamalytic copiesSold for free-to-play games must not be interpreted as paid sales. Missing fields were not supplied; Steam API keys do not unlock Gamalytic plans.")
             if sources["gamalytic"].get("provenance", {}).get("access_mode") == "free":
                 warnings.append("Gamalytic is using its keyless public field subset.")
         if "steamspy" in sources:
             warnings.append(
                 "SteamSpy values are sample-based estimates; owners are not sales and recent releases may be unreliable."
             )
+            if sources["steamspy"].get("provenance", {}).get("ambiguous_zero_fields"):
+                warnings.append("SteamSpy reported zero playtime values; their meaning is uncertain. Zeros were preserved and do not establish zero player activity.")
 
         comparison: dict[str, Any] = {}
         steam = sources.get("steam", {})

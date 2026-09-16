@@ -16,6 +16,9 @@ from .cloud_jobs import CloudTasksJobRunner, FirestoreJobStore, GcsResultStore
 from .cursor import CursorCodec
 from .jobs import InlineJobRunner, MemoryJobStore, MemoryResultStore
 from .oauth import OAuthRuntime, create_oauth_runtime
+from .providers.cheapshark import (
+    CheapSharkGameInput, CheapSharkStoresInput, get_game_match, get_game_deals, get_stores,
+)
 from .providers.market_analytics import (
     AnalyticsProviderInput,
     get_gamalytic_analytics,
@@ -38,6 +41,9 @@ def _public_dependencies() -> ServerDependencies:
             operations[tool.name] = OperationBinding(tool.fn, parameter.annotation)
     operations.update(
         {
+            "steam_get_external_price_match": OperationBinding(get_game_match, AnalyticsProviderInput),
+            "steam_get_external_deals": OperationBinding(get_game_deals, CheapSharkGameInput),
+            "steam_get_external_stores": OperationBinding(get_stores, CheapSharkStoresInput),
             "steam_get_gamalytic_analytics": OperationBinding(
                 get_gamalytic_analytics, AnalyticsProviderInput
             ),

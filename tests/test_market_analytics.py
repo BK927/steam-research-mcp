@@ -28,12 +28,13 @@ def test_normalize_gamalytic_free_result_keeps_provenance() -> None:
     assert value["appid"] == 10
     assert value["estimated_copies_sold"] == 100
     assert value["cache_timestamp_ms"] == 1234
-    assert value["provenance"] == {
-        "provider": "gamalytic",
-        "kind": "third_party_estimate",
-        "access_mode": "free",
-        "documentation": "https://api.gamalytic.com/reference/",
-    }
+    assert value["provenance"]["provider"] == "gamalytic"
+    assert value["provenance"]["access_mode"] == "free"
+    assert value["provenance"]["kind"] == "third_party_estimate"
+    assert value["provenance"]["upstream_cache_timestamp_ms"] == 1234
+    assert "estimated_revenue" in value["provenance"]["missing_fields"]
+    assert "estimated_copies_sold" in value["provenance"]["available_fields"]
+    assert value["provenance"]["fetched_at"]
     assert len(value["tags"]) == 20
 
 
@@ -65,3 +66,15 @@ def test_normalizers_reject_missing_records() -> None:
     with pytest.raises(ServiceError) as steamspy:
         normalize_steamspy({"appid": 0})
     assert steamspy.value.code is ErrorCode.NOT_FOUND
+
+
+def test_zero_values_are_preserved_without_inventing_missing_measurements() -> None:
+    value = normalize_steamspy({"appid": 440, "average_forever": 0, "ccu": 0})
+    assert value["estimated_ccu"] == 0
+    assert value["average_playtime_forever_minutes"] == 0
+    assert "median_playtime_forever_minutes" not in value
+    assert value["provenance"]["ambiguous_zero_fields"] == ["average_playtime_forever_minutes"]
+    gamalytic = normalize_gamalytic({"result": [{"steamId": 440, "copiesSold": 0, "revenue": None}]}, mode="free")
+    assert gamalytic["estimated_copies_sold"] == 0
+    assert "estimated_revenue" not in gamalytic
+    assert "free distribution" in gamalytic["provenance"]["units"]["estimated_copies_sold"]

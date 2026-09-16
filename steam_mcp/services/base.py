@@ -10,6 +10,7 @@ import unicodedata
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from collections.abc import Awaitable, Callable, Iterator
 from typing import Any, Protocol
 
@@ -127,14 +128,22 @@ class BaseService:
         self.cache = cache
         self.cursor = cursor
 
-    async def call(self, operation: str, arguments: dict[str, Any], *, ttl: int = 300) -> Any:
+    async def call(self, operation: str, arguments: dict[str, Any], *, ttl: int = 300, with_freshness: bool = False) -> Any:
         raw_key = json.dumps(
-            [operation, arguments], sort_keys=True, ensure_ascii=False, separators=(",", ":")
+            [operation, arguments, "snapshot"] if with_freshness else [operation, arguments],
+            sort_keys=True, ensure_ascii=False, separators=(",", ":")
         )
         key = hashlib.sha256(raw_key.encode()).hexdigest()
+
+        async def load() -> Any:
+            value = await self.backend.call(operation, arguments)
+            if with_freshness and isinstance(value, dict):
+                return {**value, "fetched_at": datetime.now(timezone.utc).isoformat()}
+            return value
+
         return await self.cache.get_or_load(
             key,
-            lambda: self.backend.call(operation, arguments),
+            load,
             ttl,
         )
 
