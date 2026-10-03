@@ -148,7 +148,14 @@ The default local port is `8082` and the dedicated Funnel port is `8443`. The op
 
 **Test-hardware note:** this deployment path was tested on a Raspberry Pi 4 Model B with 2 GB RAM. That is only the hardware used for testing; it is **not** a recommendation, a minimum requirement, or a performance guarantee.
 
+### Shared passkey login on a home server
+
+For the optional shared passkey front door on a personal home server, see
+[passkey login](docs/PASSKEY_LOGIN.md). Preserve the dedicated 8443 and shared
+443 login overrides during redeployment; the Cloud Run profile remains separate.
+
 ### Google Cloud Run
+
 
 The managed profile uses one image for the MCP and private worker roles:
 
